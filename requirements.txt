@@ -1,4 +1,4 @@
 requests==2.31.0
-pandas==2.0.0
-numpy==1.24.0
-supabase==1.4.0
+numpy==1.24.4
+pandas==2.0.3
+supabase>=2.3.0,<3.0.0
