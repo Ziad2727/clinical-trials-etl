@@ -1,3 +1,4 @@
+import functions_framework
 import requests
 import pandas as pd
 from supabase import create_client
@@ -5,7 +6,7 @@ import time
 from datetime import datetime
 import os
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "https://cmvnwgmcbmhpdluycya.supabase.co")
+SUPABASE_URL = os.getenv("SUPABASE_URL", "https://cmvnwgmcbmhpldluycya.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "ta_clé_anon")
 
 API_URL = "https://clinicaltrials.gov/api/v2/studies"
@@ -46,18 +47,16 @@ def extract_study_summaries(disease_name, search_query):
     page_num = 1
     
     while True:
-        log_message(f"  Page {page_num}...", end=" ")
-        
         try:
             response = requests.get(API_URL, params=params, timeout=15)
             
             if response.status_code != 200:
-                log_message(f"ERROR {response.status_code}")
+                log_message(f"  ERROR {response.status_code}")
                 return None
             
             data = response.json()
             studies = data.get('studies', [])
-            log_message(f"Found {len(studies)}")
+            log_message(f"  Page {page_num}: {len(studies)} studies")
             
             for study in studies:
                 protocol = study.get('protocolSection', {})
@@ -164,6 +163,7 @@ def extract_study_summaries(disease_name, search_query):
         log_message(f"  No summaries found")
         return None
 
+@functions_framework.http
 def etl_summaries(request):
     """Main ETL function for summaries"""
     log_message("="*80)
@@ -182,7 +182,7 @@ def etl_summaries(request):
         
         if not all_dataframes:
             log_message("No summaries extracted")
-            return {"status": "error", "message": "No summaries extracted"}, 500
+            return "ERROR: No summaries extracted", 500
         
         df_combined = pd.concat(all_dataframes, ignore_index=True)
         log_message(f"Total summaries extracted: {len(df_combined)}")
@@ -251,8 +251,8 @@ def etl_summaries(request):
         log_message("ETL SUMMARIES COMPLETED ✅")
         log_message("="*80)
         
-        return {"status": "success", "summaries_loaded": success}, 200
+        return f"SUCCESS: {success} summaries loaded", 200
     
     except Exception as e:
         log_message(f"ETL SUMMARIES FAILED: {e}")
-        return {"status": "error", "message": str(e)}, 500
+        return f"ERROR: {str(e)}", 500
