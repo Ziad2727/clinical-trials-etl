@@ -1,10 +1,11 @@
-import functions_framework
 import requests
 import pandas as pd
 from supabase import create_client
 import time
 from datetime import datetime
 import os
+import json
+import base64
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://cmvnwgmcbmhpldluycya.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "ta_clé_anon")
@@ -163,9 +164,8 @@ def extract_study_summaries(disease_name, search_query):
         log_message(f"  No summaries found")
         return None
 
-@functions_framework.http
-def etl_summaries(request):
-    """Main ETL function for summaries"""
+def etl_summaries(event, context):
+    """Main ETL function for summaries (Pub/Sub trigger)"""
     log_message("="*80)
     log_message("ETL SUMMARIES STARTED")
     log_message("="*80)
@@ -182,7 +182,7 @@ def etl_summaries(request):
         
         if not all_dataframes:
             log_message("No summaries extracted")
-            return "ERROR: No summaries extracted", 500
+            return "ERROR: No summaries extracted"
         
         df_combined = pd.concat(all_dataframes, ignore_index=True)
         log_message(f"Total summaries extracted: {len(df_combined)}")
@@ -248,11 +248,11 @@ def etl_summaries(request):
         
         log_message(f"Successfully upserted: {success} summaries")
         log_message("="*80)
-        log_message("ETL SUMMARIES COMPLETED ✅")
+        log_message("ETL SUMMARIES COMPLETED")
         log_message("="*80)
         
-        return f"SUCCESS: {success} summaries loaded", 200
+        return "OK"
     
     except Exception as e:
         log_message(f"ETL SUMMARIES FAILED: {e}")
-        return f"ERROR: {str(e)}", 500
+        return f"ERROR: {str(e)}"

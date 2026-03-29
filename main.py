@@ -1,10 +1,11 @@
-import functions_framework
 import requests
 import pandas as pd
 from supabase import create_client
 import time
 from datetime import datetime
 import os
+import json
+import base64
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "https://cmvnwgmcbmhpldluycya.supabase.co")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "ta_clé_anon")
@@ -165,9 +166,8 @@ def extract_disease_trials(disease_name, search_query):
         log_message(f"  No trials found")
         return None
 
-@functions_framework.http
-def etl_trials(request):
-    """Main ETL function for clinical trials"""
+def etl_trials(event, context):
+    """Main ETL function for clinical trials (Pub/Sub trigger)"""
     log_message("="*80)
     log_message("ETL TRIALS STARTED")
     log_message("="*80)
@@ -184,7 +184,7 @@ def etl_trials(request):
         
         if not all_dataframes:
             log_message("No data extracted")
-            return "ERROR: No data extracted", 500
+            return "ERROR: No data extracted"
         
         df_combined = pd.concat(all_dataframes, ignore_index=True)
         log_message(f"Total trials extracted: {len(df_combined)}")
@@ -237,11 +237,11 @@ def etl_trials(request):
         
         log_message(f"Successfully upserted: {success} trials")
         log_message("="*80)
-        log_message("ETL TRIALS COMPLETED ✅")
+        log_message("ETL TRIALS COMPLETED")
         log_message("="*80)
         
-        return f"SUCCESS: {success} trials loaded", 200
+        return "OK"
     
     except Exception as e:
         log_message(f"ETL TRIALS FAILED: {e}")
-        return f"ERROR: {str(e)}", 500
+        return f"ERROR: {str(e)}"
