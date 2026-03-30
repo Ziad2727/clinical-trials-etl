@@ -339,3 +339,5 @@ def etl_trials(event, context):
     except Exception as e:
         # Log any errors in the main ETL process
         log_message(f"ETL TRIALS FAILED: {e}")
+
+print("CLEAN BUILD V3")
