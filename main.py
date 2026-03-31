@@ -222,8 +222,8 @@ def etl_combined(event, context):
         
         log_message(f"After filtering phases: {len(df_combined)} records")
         
-        # Clean text fields
-        text_columns = ['BriefSummary', 'DetailedDescription', 'Keywords', 'PrimaryOutcomes', 'SecondaryOutcomes']
+# Clean text fields
+        text_columns = ['briefsummary', 'detaileddescription', 'keywords', 'primaryoutcomes', 'secondaryoutcomes']
         
         for col in text_columns:
             if col in df_combined.columns:
@@ -232,7 +232,7 @@ def etl_combined(event, context):
                 df_combined[col] = df_combined[col].str.replace('  ', ' ', regex=False)
         
         # Replace N/A with "Not published"
-        summary_columns = ['BriefSummary', 'DetailedDescription', 'Keywords', 'PrimaryOutcomes', 'SecondaryOutcomes']
+        summary_columns = ['briefsummary', 'detaileddescription', 'keywords', 'primaryoutcomes', 'secondaryoutcomes']
         for col in summary_columns:
             if col in df_combined.columns:
                 df_combined[col] = df_combined[col].replace('N/A', 'Not published')
