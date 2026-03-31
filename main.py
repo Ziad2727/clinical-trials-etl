@@ -121,26 +121,26 @@ def extract_combined_data(disease_name, search_query):
                 secondary_outcome_str = ' | '.join([f"{o.get('measure', 'N/A')}" for o in secondary_outcomes]) if secondary_outcomes else 'N/A'
                 
                 all_combined.append({
-                    'Disease': disease_name,
-                    'NCTId': ident.get('nctId'),
-                    'Title': ident.get('briefTitle'),
-                    'Status': status_mod.get('overallStatus', 'N/A'),
-                    'Phase': phase,
-                    'PrimaryPurpose': primary_purpose,
-                    'Enrollment': enrollment,
-                    'HasResults': has_results,
-                    'SponsorType': sponsor_type,
-                    'IsFdaRegulated': is_fda,
-                    'Locations': countries_str,
-                    'Conditions': conditions_str,
-                    'InterventionName': intervention_name,
-                    'StartDate': start_date,
-                    'EndDate': end_date,
-                    'BriefSummary': brief_summary,
-                    'DetailedDescription': detailed_description,
-                    'Keywords': keywords_str,
-                    'PrimaryOutcomes': primary_outcome_str,
-                    'SecondaryOutcomes': secondary_outcome_str,
+                    'disease': disease_name,              # était 'Disease'
+                    'nctid': ident.get('nctId'),          # était 'NCTId'
+                    'title': ident.get('briefTitle'),     # était 'Title'
+                    'status': status_mod.get('overallStatus', 'N/A'),  # était 'Status'
+                    'phase': phase,                       # était 'Phase'
+                    'primarypurpose': primary_purpose,    # était 'PrimaryPurpose'
+                    'enrollment': enrollment,             # était 'Enrollment'
+                    'hasresults': has_results,            # était 'HasResults'
+                    'sponsortype': sponsor_type,          # était 'SponsorType'
+                    'isfdaregulated': is_fda,             # était 'IsFdaRegulated'
+                    'locations': countries_str,           # était 'Locations'
+                    'conditions': conditions_str,
+                    'interventionname': intervention_name,
+                    'startdate': start_date,
+                    'enddate': end_date,
+                    'briefsummary': brief_summary,        # était 'BriefSummary'
+                    'detaileddescription': detailed_description,
+                    'keywords': keywords_str,
+                    'primaryoutcomes': primary_outcome_str,
+                    'secondaryoutcomes': secondary_outcome_str,
                 })
             
             next_token = data.get('nextPageToken')
