@@ -5,6 +5,10 @@ import time
 from datetime import datetime
 import os
 
+
+def normalize_keys(d):
+    return {k.lower(): v for k, v in d.items()}
+
 # API Configuration
 API_URL = "https://clinicaltrials.gov/api/v2/studies"
 STATUS_FILTER = "RECRUITING,ACTIVE_NOT_RECRUITING,ENROLLING_BY_INVITATION,COMPLETED"
@@ -242,13 +246,16 @@ def etl_combined(event, context):
         # UPSERT to Supabase
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         
-        success = 0
-        for idx, row in df_combined.iterrows():
-            try:
-                supabase.table('clinical_trials_combined').upsert(row.to_dict()).execute()
-                success += 1
-            except Exception as e:
-                log_message(f"Error upserting {row['NCTId']}: {e}")
+        records = [
+            normalize_keys(row)
+            for row in df_combined.to_dict(orient="records")
+        ]
+
+        try:
+            supabase.table('clinical_trials_combined').upsert(records).execute()
+            log_message(f"Successfully upserted: {len(records)} records")
+        except Exception as e:
+            log_message(f"Batch upsert error: {e}")
         
         log_message(f"Successfully upserted: {success} records")
         log_message("="*80)
