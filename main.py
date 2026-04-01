@@ -246,18 +246,23 @@ def etl_combined(event, context):
         # UPSERT to Supabase
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
         
+        BATCH_SIZE = 200
+
         records = [
             normalize_keys(row)
             for row in df_combined.to_dict(orient="records")
         ]
 
-        try:
-            supabase.table('clinical_trials_combined').upsert(records).execute()
-            log_message(f"Successfully upserted: {len(records)} records")
-        except Exception as e:
-            log_message(f"Batch upsert error: {e}")
+        for i in range(0, len(records), BATCH_SIZE):
+            batch = records[i:i+BATCH_SIZE]
+
+            try:
+                supabase.table('clinical_trials_combined').upsert(batch).execute()
+                log_message(f"Batch {i//BATCH_SIZE + 1} inserted: {len(batch)} records")
+            except Exception as e:
+                log_message(f"Batch error: {e}")
         
-        log_message(f"Successfully upserted: {success} records")
+
         log_message("="*80)
         log_message("ETL COMBINED COMPLETED")
         log_message("="*80)
