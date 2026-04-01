@@ -52,10 +52,24 @@ def extract_combined_data(disease_name, search_query):
     
     while True:
         try:
-            response = requests.get(API_URL, params=params, timeout=15)
-            
-            if response.status_code != 200:
-                log_message(f"  ERROR {response.status_code}")
+            response = None
+
+            for attempt in range(3):
+                try:
+                    response = requests.get(API_URL, params=params, timeout=15)
+                    
+                    if response.status_code == 200:
+                        break
+                    
+                    log_message(f"  Attempt {attempt+1} failed with status {response.status_code}")
+                    time.sleep(2)
+
+                except requests.exceptions.RequestException as e:
+                    log_message(f"  Attempt {attempt+1} network error: {e}")
+                    time.sleep(2)
+
+            if response is None or response.status_code != 200:
+                log_message(f"  ERROR after retries")
                 return None
             
             data = response.json()
