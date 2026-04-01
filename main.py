@@ -81,14 +81,7 @@ def extract_combined_data(disease_name, search_query):
                 cond_mod = protocol.get('conditionsModule', {})
                 conditions_list = cond_mod.get('conditions', [])
                 
-                keywords = [kw.strip().lower() for kw in search_query.split('OR')]
-                found_match = False
-                for condition in conditions_list:
-                    if any(keyword in condition.lower() for keyword in keywords):
-                        found_match = True
-                        break
-                
-                if not found_match:
+                if not any(disease_name.lower() in condition.lower() for condition in conditions_list):
                     continue
                 
                 design_mod = protocol.get('designModule', {})
@@ -206,6 +199,9 @@ def etl_combined(event, context):
             return
         
         df_combined = pd.concat(all_dataframes, ignore_index=True)
+        df_combined = df_combined.drop_duplicates(subset=['nctid'])
+
+        log_message(f"Final rows to insert: {len(df_combined)}")
         log_message(f"Total records extracted: {len(df_combined)}")
         log_message(f"Diseases extracted: {df_combined['Disease'].nunique()}")
         
@@ -271,7 +267,9 @@ def etl_combined(event, context):
             batch = records[i:i+BATCH_SIZE]
 
             try:
-                supabase.table('clinical_trials_combined').upsert(batch).execute()
+                supabase.table('clinical_trials_combined')\
+                    .upsert(batch, on_conflict='nctid')\
+                    .execute()
                 log_message(f"Batch {i//BATCH_SIZE + 1} inserted: {len(batch)} records")
             except Exception as e:
                 log_message(f"Batch error: {e}")
