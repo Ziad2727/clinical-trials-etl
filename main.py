@@ -552,7 +552,7 @@ def etl_combined(event, context):
                 # "Upsert" means: insert if new, update if exists
                 # This handles re-runs gracefully - no duplicate key errors
                 supabase.table('clinical_trials_combined') \
-                    .upsert(batch) \
+                    .upsert(batch, ignore_duplicates=False) \
                     .execute()
 
                 # Log successful batch insertion
