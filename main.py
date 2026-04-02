@@ -1,14 +1,17 @@
 """
-Clinical Trials ETL Pipeline
-=============================
+Clinical Trials ETL Pipeline - Complete Version
+================================================
 
-This module implements an Extract-Transform-Load (ETL) pipeline that:
+This module implements a comprehensive Extract-Transform-Load (ETL) pipeline that:
 1. Extracts clinical trial data from ClinicalTrials.gov API for 10 diseases
-2. Transforms and cleans the data (remove duplicates, standardize phases, etc.)
-3. Loads the processed data into Supabase PostgreSQL database
+2. Extracts ALL available trial information including phases, enrollment, outcomes, etc.
+3. Transforms and cleans the data (remove duplicates, standardize formats, etc.)
+4. Loads the complete processed data into Supabase PostgreSQL database
 
 The pipeline is designed to run automatically via Google Cloud Functions
 and Cloud Scheduler, executing daily at 11:00 AM UTC (Monday-Friday).
+
+This version extracts 20+ fields per trial to provide comprehensive data for analysis.
 
 """
 
@@ -123,21 +126,32 @@ def log_message(message):
 
 def extract_combined_data(disease_name, search_query):
     """
-    Extract clinical trial data from ClinicalTrials.gov API for a specific disease.
+    Extract comprehensive clinical trial data from ClinicalTrials.gov API.
     
     This function:
     1. Sends paginated requests to the API using the disease search query
-    2. Extracts relevant trial information from each study
+    2. Extracts ALL relevant trial information (20+ fields per trial)
     3. Handles pagination to retrieve all available results
     4. Removes duplicate studies based on NCTId
-    5. Returns a pandas DataFrame with the cleaned data
+    5. Returns a pandas DataFrame with the complete cleaned data
+    
+    Fields extracted:
+    - Basic info: disease, nctid, title, status
+    - Trial design: phase, primarypurpose, enrollment
+    - Locations: locations, conditions
+    - Sponsorship: sponsortype, isfdaregulated
+    - Treatments: interventionname
+    - Dates: startdate, enddate
+    - Summaries: briefsummary, detaileddescription, keywords
+    - Outcomes: primaryoutcomes, secondaryoutcomes
+    - Results: hasresults
     
     Args:
         disease_name (str): Name of the disease (e.g., 'Hypertension')
         search_query (str): API search query with disease keywords
         
     Returns:
-        pd.DataFrame: DataFrame with trial data or None if extraction fails
+        pd.DataFrame: DataFrame with complete trial data or None if extraction fails
         
     Raises:
         Catches requests exceptions and returns None on API errors
@@ -189,35 +203,191 @@ def extract_combined_data(disease_name, search_query):
                 # The protocolSection contains all relevant trial metadata
                 protocol = study.get('protocolSection', {})
 
+                # ============================================================
                 # Extract different sections of the protocol
-                ident = protocol.get('identificationModule', {})  # Trial ID, title
-                status_mod = protocol.get('statusModule', {})  # Status, dates
-                design_mod = protocol.get('designModule', {})  # Phase, design details
-                desc_mod = protocol.get('descriptionModule', {})  # Summary, description
-                sponsor_mod = protocol.get('sponsorCollaboratorsModule', {})  # Sponsors
-                locations_mod = protocol.get('contactsLocationsModule', {})  # Locations
+                # ============================================================
+                
+                # Identification Module - Basic trial identification info
+                ident = protocol.get('identificationModule', {})
+                
+                # Status Module - Trial current status and important dates
+                status_mod = protocol.get('statusModule', {})
+                
+                # Design Module - Trial design characteristics and phases
+                design_mod = protocol.get('designModule', {})
+                design_info = design_mod.get('designInfo', {})
+                
+                # Description Module - Summaries and detailed descriptions
+                desc_mod = protocol.get('descriptionModule', {})
+                
+                # Sponsor Module - Information about trial sponsors
+                sponsor_mod = protocol.get('sponsorCollaboratorsModule', {})
+                lead_sponsor = sponsor_mod.get('leadSponsor', {})
+                
+                # Locations Module - Geographic locations where trial is conducted
+                locations_mod = protocol.get('contactsLocationsModule', {})
+                
+                # Interventions Module - Drugs/treatments being tested
+                interv_mod = protocol.get('armsInterventionsModule', {})
+                
+                # Conditions Module - Medical conditions being studied
+                cond_mod = protocol.get('conditionsModule', {})
+                
+                # Oversight Module - FDA regulation info
+                oversight = protocol.get('oversightModule', {})
 
-                # Extract trial phases and convert to string
-                # Phases indicate the development stage of the trial (I, II, III, IV)
+                # ============================================================
+                # Extract and transform BASIC INFORMATION
+                # ============================================================
+                
+                # Trial phases indicate the development stage
+                # Phases: Early Phase 1, Phase 1, 2, 3, 4
                 phases = design_mod.get('phases', [])
                 phase = ", ".join(phases) if phases else 'N/A'
 
-                # Extract trial locations and extract unique country names
+                # Primary purpose of the trial (TREATMENT, PREVENTION, etc.)
+                primary_purpose = design_info.get('primaryPurpose', 'N/A')
+
+                # Number of participants enrolled in the trial
+                enrollment = design_mod.get('enrollmentInfo', {}).get('count', 0) or 0
+
+                # Whether trial has published results
+                has_results = study.get('hasResults', False)
+
+                # Sponsor type (INDUSTRY, ACADEMIC, etc.)
+                sponsor_type = lead_sponsor.get('class', 'N/A')
+
+                # Whether the drug/intervention is FDA regulated
+                is_fda = oversight.get('isFdaRegulatedDrug', False)
+
+                # ============================================================
+                # Extract LOCATIONS (countries where trial is conducted)
+                # ============================================================
+                
                 locations = locations_mod.get('locations', [])
-                countries = list(set(loc.get('country') for loc in locations if loc.get('country')))
+                countries = list(set(
+                    loc.get('country') for loc in locations if loc.get('country')
+                ))
                 countries_str = ", ".join(countries)
 
-                # Create a record (dictionary) with the extracted trial information
+                # ============================================================
+                # Extract DATES
+                # ============================================================
+                
+                # When the trial started
+                start_date = status_mod.get('startDateStruct', {}).get('date')
+                
+                # When the trial ended or is expected to end
+                end_date = (
+                    status_mod.get('primaryCompletionDateStruct', {}).get('date') 
+                    or status_mod.get('completionDateStruct', {}).get('date')
+                )
+
+                # ============================================================
+                # Extract CONDITIONS (medical conditions being studied)
+                # ============================================================
+                
+                conditions_list = cond_mod.get('conditions', [])
+                conditions_str = ", ".join(conditions_list)
+
+                # ============================================================
+                # Extract INTERVENTIONS (drugs/treatments being tested)
+                # ============================================================
+                
+                interventions = interv_mod.get('interventions', [])
+                # Extract drug names from interventions
+                # Only include DRUG and BIOLOGICAL type interventions
+                drug_names = list(dict.fromkeys([
+                    i.get('name', '').strip() 
+                    for i in interventions 
+                    if i.get('type', '') in ('DRUG', 'BIOLOGICAL') 
+                    and i.get('name', '').strip()
+                ]))
+                intervention_name = ', '.join(drug_names) if drug_names else 'N/A'
+
+                # ============================================================
+                # Extract DESCRIPTIONS AND SUMMARIES
+                # ============================================================
+                
+                # Brief summary of the trial
+                brief_summary = desc_mod.get('briefSummary', 'N/A') if desc_mod else 'N/A'
+                
+                # Detailed scientific description of the trial
+                detailed_description = (
+                    desc_mod.get('detailedDescription', 'N/A') if desc_mod else 'N/A'
+                )
+                
+                # Keywords associated with the trial
+                keywords_list = desc_mod.get('keywords', []) if desc_mod else []
+                keywords_str = ", ".join(keywords_list) if keywords_list else 'N/A'
+
+                # ============================================================
+                # Extract OUTCOMES
+                # ============================================================
+                
+                results_section = study.get('resultsSection', {})
+                
+                # Primary outcomes - main things being measured
+                primary_outcomes = (
+                    results_section.get('primaryOutcomes', []) 
+                    if results_section else []
+                )
+                primary_outcome_str = (
+                    ' | '.join([f"{o.get('measure', 'N/A')}" for o in primary_outcomes]) 
+                    if primary_outcomes else 'N/A'
+                )
+                
+                # Secondary outcomes - additional things being measured
+                secondary_outcomes = (
+                    results_section.get('secondaryOutcomes', []) 
+                    if results_section else []
+                )
+                secondary_outcome_str = (
+                    ' | '.join([f"{o.get('measure', 'N/A')}" for o in secondary_outcomes]) 
+                    if secondary_outcomes else 'N/A'
+                )
+
+                # ============================================================
+                # CREATE RECORD WITH ALL EXTRACTED DATA
+                # ============================================================
+                
                 # All keys are lowercase to match Supabase column names
                 all_data.append({
+                    # Basic identification
                     'disease': disease_name,  # Which disease this trial is for
-                    'nctid': ident.get('nctId'),  # National Clinical Trial ID (unique identifier)
+                    'nctid': ident.get('nctId'),  # National Clinical Trial ID (unique)
                     'title': ident.get('briefTitle'),  # Brief title of the trial
-                    'status': status_mod.get('overallStatus'),  # Current status (recruiting, completed, etc.)
+                    
+                    # Status and design
+                    'status': status_mod.get('overallStatus'),  # Current status
                     'phase': phase,  # Trial phase (I, II, III, IV)
-                    'startdate': status_mod.get('startDateStruct', {}).get('date'),  # When trial started
-                    'locations': countries_str,  # Countries where trial is conducted
-                    'briefsummary': desc_mod.get('briefSummary', 'N/A'),  # Brief description of trial
+                    'primarypurpose': primary_purpose,  # TREATMENT, PREVENTION, etc.
+                    
+                    # Enrollment and results
+                    'enrollment': enrollment,  # Number of participants
+                    'hasresults': has_results,  # Whether results are published
+                    
+                    # Sponsorship and regulation
+                    'sponsortype': sponsor_type,  # INDUSTRY, ACADEMIC, etc.
+                    'isfdaregulated': is_fda,  # FDA regulation status
+                    
+                    # Geographic and medical info
+                    'locations': countries_str,  # Countries where trial runs
+                    'conditions': conditions_str,  # Medical conditions studied
+                    'interventionname': intervention_name,  # Drugs/treatments tested
+                    
+                    # Timeline
+                    'startdate': start_date,  # When trial started
+                    'enddate': end_date,  # When trial ended/will end
+                    
+                    # Descriptions
+                    'briefsummary': brief_summary,  # Brief description
+                    'detaileddescription': detailed_description,  # Detailed description
+                    'keywords': keywords_str,  # Associated keywords
+                    
+                    # Outcomes
+                    'primaryoutcomes': primary_outcome_str,  # Primary measurements
+                    'secondaryoutcomes': secondary_outcome_str,  # Secondary measurements
                 })
 
             # Check if there are more pages of results
@@ -245,6 +415,10 @@ def extract_combined_data(disease_name, search_query):
         # NCTId is unique identifier for each clinical trial
         df = df.drop_duplicates(subset=['nctid'])
 
+        # Fill missing values with 'Unknown' for string columns
+        # This prevents NULL values in the database
+        df = df.fillna("Unknown")
+
         # Log final count for this disease
         log_message(f"{disease_name} final: {len(df)}")
 
@@ -264,9 +438,9 @@ def etl_combined(event, context):
     
     This is the entry point for the Cloud Function. It orchestrates the entire
     ETL process:
-    1. Extracts data for each of the 10 diseases
+    1. Extracts complete data for each of the 10 diseases
     2. Combines all disease data into one DataFrame
-    3. Cleans and standardizes the data
+    3. Cleans and standardizes the data (phases, dates, etc.)
     4. Loads data into Supabase in batches
     
     Args:
@@ -277,6 +451,7 @@ def etl_combined(event, context):
         - Triggered by Cloud Scheduler via Pub/Sub topic
         - All errors are logged and execution continues
         - Data is upserted (inserted or updated) to handle re-runs
+        - Batch processing prevents timeout and memory issues
     """
     
     log_message("ETL STARTED")
@@ -285,7 +460,7 @@ def etl_combined(event, context):
         # Initialize list to hold DataFrames for each disease
         all_dfs = []
 
-        # Extract data for each disease
+        # Extract complete data for each disease
         # This loop processes all 10 diseases sequentially
         for disease, query in DISEASES.items():
             df = extract_combined_data(disease, query)
@@ -321,6 +496,34 @@ def etl_combined(event, context):
 
         # Log how many records remain after phase filtering
         log_message(f"After phase filter: {len(df_combined)}")
+
+        # ====================================================================
+        # CLEAN TEXT FIELDS
+        # ====================================================================
+
+        # Remove newlines and extra spaces from text fields
+        # This prevents formatting issues in the database
+        text_columns = [
+            'briefsummary', 'detaileddescription', 'keywords',
+            'primaryoutcomes', 'secondaryoutcomes'
+        ]
+        
+        for col in text_columns:
+            if col in df_combined.columns:
+                # Remove newline characters
+                df_combined[col] = df_combined[col].str.replace('\n', ' ', regex=False)
+                # Remove carriage returns
+                df_combined[col] = df_combined[col].str.replace('\r', ' ', regex=False)
+                # Remove multiple spaces and replace with single space
+                df_combined[col] = df_combined[col].str.replace('  ', ' ', regex=False)
+
+        # Replace 'Unknown' with 'Not published' for summary fields
+        # This provides better clarity in the database
+        for col in text_columns:
+            if col in df_combined.columns:
+                df_combined[col] = df_combined[col].replace('Unknown', 'Not published')
+
+        log_message("Text fields cleaned")
 
         # ====================================================================
         # DATA LOADING TO SUPABASE
