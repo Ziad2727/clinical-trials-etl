@@ -517,14 +517,12 @@ def etl_combined(event, context):
                 # Remove multiple spaces and replace with single space
                 df_combined[col] = df_combined[col].str.replace('  ', ' ', regex=False)
 
-        # Replace 'Unknown' with 'Not published' for summary fields
-        # This provides better clarity in the database
-        for col in text_columns:
-            if col in df_combined.columns:
-                df_combined[col] = df_combined[col].replace('Unknown', 'Not published')
+        # Replace all N/A values with "Unknown"
+        df_combined = df_combined.replace('N/A', 'Unknown')
 
         log_message("Text fields cleaned")
 
+        
         # ====================================================================
         # DATA LOADING TO SUPABASE
         # ====================================================================
