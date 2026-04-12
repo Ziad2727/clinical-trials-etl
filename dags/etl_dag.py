@@ -1,6 +1,7 @@
 """
 Airflow DAG for Clinical Trials ETL Pipeline
 Complete version with all ETL code embedded
+Uses HTTP requests to Supabase instead of supabase library
 """
 
 from airflow import DAG
@@ -8,9 +9,9 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import requests
 import pandas as pd
-from supabase import create_client
 import time
 import os
+import json
 
 # ============================================================================
 # API CONFIGURATION
@@ -239,11 +240,23 @@ def run_etl():
 
         log_message("Text fields cleaned")
 
-        # Load to Supabase
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        # ====================================================================
+        # Load to Supabase using HTTP requests
+        # ====================================================================
+        
+        headers = {
+            'apikey': SUPABASE_KEY,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+        }
 
+        # First, truncate the table
         try:
-            supabase.table('clinical_trials_combined').delete().neq('nctid', '').execute()
+            requests.delete(
+                f"{SUPABASE_URL}/rest/v1/clinical_trials_combined?nctid=neq.null",
+                headers=headers,
+                timeout=15
+            )
             log_message("Table truncated - ready for fresh load")
         except Exception as e:
             log_message(f"Warning: Could not truncate table: {e}")
@@ -253,14 +266,20 @@ def run_etl():
 
         for i in range(0, len(records), BATCH_SIZE):
             batch = records[i:i+BATCH_SIZE]
-
+            
             try:
-                supabase.table('clinical_trials_combined') \
-                    .upsert(batch, ignore_duplicates=False) \
-                    .execute()
-
-                log_message(f"Batch {i//BATCH_SIZE + 1} inserted: {len(batch)} records")
-
+                response = requests.post(
+                    f"{SUPABASE_URL}/rest/v1/clinical_trials_combined",
+                    headers=headers,
+                    json=batch,
+                    timeout=30
+                )
+                
+                if response.status_code in [200, 201]:
+                    log_message(f"Batch {i//BATCH_SIZE + 1} inserted: {len(batch)} records")
+                else:
+                    log_message(f"Batch error: {response.status_code} - {response.text}")
+            
             except Exception as e:
                 log_message(f"Batch error: {e}")
 
