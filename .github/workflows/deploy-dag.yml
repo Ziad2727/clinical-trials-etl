@@ -1,0 +1,38 @@
+name: Deploy DAG to Cloud Composer
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'dags/**'
+      - '.github/workflows/deploy-dag.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+      
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Upload DAG to Cloud Composer
+        run: |
+          gcloud composer environments storage dags import \
+            --environment=tracking-hope-airflow \
+            --location=us-central1 \
+            --source=dags/etl_dag.py
+      
+      - name: Verify DAG uploaded
+        run: |
+          gcloud composer environments storage dags list \
+            --environment=tracking-hope-airflow \
+            --location=us-central1
