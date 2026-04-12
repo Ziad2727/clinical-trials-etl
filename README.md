@@ -2,7 +2,7 @@
 
 Extract, transform, and load clinical trials data from ClinicalTrials.gov to Supabase using Apache Airflow on Google Cloud Composer.
 
-## 🚀 Overview
+## Overview
 
 This project orchestrates a daily ETL pipeline that:
 
@@ -14,7 +14,7 @@ The pipeline is fully automated and runs daily at **11:00 AM UTC (Monday-Friday)
 
 ---
 
-## 📊 Data Coverage
+## Data Coverage
 
 **10 Diseases Tracked:**
 - Hypertension
@@ -40,7 +40,7 @@ The pipeline is fully automated and runs daily at **11:00 AM UTC (Monday-Friday)
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design.
 
@@ -59,7 +59,7 @@ Supabase PostgreSQL (Data Storage)
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 - Google Cloud Account with billing enabled
 - Supabase account with PostgreSQL database
@@ -152,7 +152,7 @@ Add the JSON key to GitHub Secrets as `GCP_SA_KEY`.
 
 ---
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 clinical-trials-etl/
@@ -168,7 +168,7 @@ clinical-trials-etl/
 
 ---
 
-## 🔄 How It Works
+## How It Works
 
 ### Automatic Execution
 
@@ -199,7 +199,7 @@ Run manually via Airflow UI:
 
 ---
 
-## 🚀 Deployment
+## Deployment
 
 ### Automatic via GitHub Actions
 
@@ -220,7 +220,7 @@ gcloud composer environments storage dags import \
 
 ---
 
-## 📊 Monitoring
+## Monitoring
 
 ### View DAG Status
 1. Open Cloud Composer environment URL
@@ -241,7 +241,7 @@ gcloud composer environments run tracking-hope-airflow \
 
 ---
 
-## 🔧 Maintenance
+## Maintenance
 
 ### Update the DAG
 
@@ -282,7 +282,7 @@ Commit and push - GitHub Actions handles deployment!
 
 ---
 
-## 📈 Performance
+## Performance
 
 - **Execution Time:** 5-10 minutes per run
 - **Records Processed:** 15,810+ per day
@@ -292,7 +292,7 @@ Commit and push - GitHub Actions handles deployment!
 
 ---
 
-## 👥 Team
+## Team
 
 - **Zina Tiar**
 - **Matthias Haeflinger**
@@ -306,7 +306,7 @@ MIT
 
 ---
 
-## 📞 Support
+## Support
 
 For issues or questions:
 1. Check [ARCHITECTURE.md](./ARCHITECTURE.md) for system design
@@ -316,7 +316,7 @@ For issues or questions:
 
 ---
 
-## 🎯 Next Steps
+## Next Steps
 
 - [ ] Build visualization dashboard (Dash/Streamlit)
 - [ ] Add data quality checks as DAG task
