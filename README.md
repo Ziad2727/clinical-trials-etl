@@ -1,10 +1,22 @@
-# Clinical Trials ETL Pipeline
+# Clinical Trials ETL Pipeline - TrackingHope
 
-Extraction, transformation, and loading of clinical trials data from ClinicalTrials.gov to Supabase using Google Cloud Functions.
+Extract, transform, and load clinical trials data from ClinicalTrials.gov to Supabase using Apache Airflow on Google Cloud Composer.
 
-## Overview
+## 🚀 Overview
 
-This project extracts combined clinical trials data for 10 diseases:
+This project orchestrates a daily ETL pipeline that:
+
+1. **Extracts** clinical trial data from ClinicalTrials.gov API for 10 diseases
+2. **Transforms** and cleans the data (remove duplicates, standardize formats, etc.)
+3. **Loads** the processed data into Supabase PostgreSQL database
+
+The pipeline is fully automated and runs daily at **11:00 AM UTC (Monday-Friday)** via Apache Airflow.
+
+---
+
+## 📊 Data Coverage
+
+**10 Diseases Tracked:**
 - Hypertension
 - Stroke
 - COPD
@@ -16,302 +28,304 @@ This project extracts combined clinical trials data for 10 diseases:
 - Lung Cancer
 - Ischemic Heart Disease
 
-## Architecture
+**Data per Trial:**
+- Trial identification (NCTId, Title, Status)
+- Design info (Phase, Primary Purpose, Enrollment)
+- Results status and sponsorship details
+- Locations, conditions, and interventions
+- Dates (start, completion, primary completion)
+- Summaries, descriptions, and outcomes
 
+**Total Records:** 15,810+ clinical trials
+
+---
+
+## 🏗️ Architecture
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design.
+
+**Quick Overview:**
 ```
+GitHub (Source Code)
+    ↓
+GitHub Actions (CI/CD)
+    ↓
+Google Cloud Composer (Airflow)
+    ↓
 ClinicalTrials.gov API
-        ↓
-Google Cloud Functions (Daily execution)
-        ↓
-Supabase PostgreSQL (Data storage)
-        ↓
-Dash/R Shiny (Visualization - Future)
+    ↓
+Supabase PostgreSQL (Data Storage)
 ```
 
-## Single ETL Function
+---
 
-### **main.py** - Combined Trials and Summaries
+## 📋 Prerequisites
 
-Extracts complete trial information combined with summaries:
+- Google Cloud Account with billing enabled
+- Supabase account with PostgreSQL database
+- GitHub repository (this one!)
+- Git CLI installed locally
 
-**Trial Data**:
-- NCTId, Title, Status, Phase
-- Enrollment, Results Status
-- Sponsor Type, FDA Regulation
-- Locations, Conditions
-- Intervention Names
-- Start/End Dates
+---
 
-**Summary Data**:
-- Brief Summary
-- Detailed Description
-- Keywords
-- Primary Outcomes
-- Secondary Outcomes
+## 🔧 Setup Instructions
 
-**Table**: `clinical_trials_combined` (15,810 records)
+### 1. Create Supabase Table
 
-## Filters Applied
-
-- **Status**: RECRUITING, ACTIVE_NOT_RECRUITING, ENROLLING_BY_INVITATION, COMPLETED
-- **Primary Purpose**: TREATMENT or PREVENTION only
-- **Phase**: Phase 1, 2, 3, 4 (Early Phase 1 included)
-- **Duplicates**: Removed based on NCTId
-
-## Data Statistics
-
-- **Total Records**: 15,810 (combined trials + summaries)
-- **Unique Diseases**: 10
-- **Execution Time**: ~5-10 minutes per run
-- **Update Frequency**: Daily (Monday-Friday 11:00 AM UTC)
-
-## Prerequisites
-
-- Google Cloud Account (free tier available)
-- Supabase Account with PostgreSQL database
-- gcloud CLI installed
-- Python 3.11+
-
-## Project Structure
-
-```
-clinical-trials-etl/
-├── main.py                    # Combined ETL function
-├── requirements.txt           # Python dependencies
-├── README.md                  # This file
-├── DEPLOYMENT.md              # Detailed deployment guide
-├── .gitignore                 # Git ignore rules
-└── logs/                      # Log files directory
-    └── .gitkeep
-```
-
-## Dependencies
-
-```
-requests==2.31.0
-numpy==1.26.0
-pandas==2.1.0
-supabase==2.28.3
-```
-
-## Deployment to Google Cloud
-
-### Step 1: Setup Google Cloud
-
-```bash
-gcloud init
-gcloud auth login
-gcloud config set project clinical-trials-etl
-```
-
-### Step 2: Enable Required APIs
-
-```bash
-gcloud services enable cloudfunctions.googleapis.com
-gcloud services enable cloudscheduler.googleapis.com
-gcloud services enable cloudbuild.googleapis.com
-gcloud services enable pubsub.googleapis.com
-```
-
-### Step 3: Create Pub/Sub Topic
-
-```bash
-gcloud pubsub topics create clinical-trials-trigger
-```
-
-### Step 4: Create Supabase Table
-
-In Supabase SQL Editor, run:
+Run this SQL in Supabase SQL Editor:
 
 ```sql
 CREATE TABLE clinical_trials_combined (
   id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-  Disease VARCHAR(255),
-  NCTId VARCHAR(255) UNIQUE NOT NULL,
-  Title TEXT,
-  Status VARCHAR(255),
-  Phase VARCHAR(255),
-  PrimaryPurpose VARCHAR(255),
-  Enrollment INTEGER,
-  HasResults BOOLEAN,
-  SponsorType VARCHAR(255),
-  IsFdaRegulated BOOLEAN,
-  Locations TEXT,
-  Conditions TEXT,
-  InterventionName TEXT,
-  StartDate VARCHAR(255),
-  EndDate VARCHAR(255),
-  BriefSummary TEXT,
-  DetailedDescription TEXT,
-  Keywords TEXT,
-  PrimaryOutcomes TEXT,
-  SecondaryOutcomes TEXT,
+  disease VARCHAR(255),
+  nctid VARCHAR(255) UNIQUE NOT NULL,
+  title TEXT,
+  status VARCHAR(255),
+  phase VARCHAR(255),
+  primarypurpose VARCHAR(255),
+  enrollment INTEGER,
+  hasresults BOOLEAN,
+  sponsortype VARCHAR(255),
+  isfdaregulated BOOLEAN,
+  locations TEXT,
+  conditions TEXT,
+  interventionname TEXT,
+  startdate VARCHAR(255),
+  enddate VARCHAR(255),
+  briefsummary TEXT,
+  detaileddescription TEXT,
+  keywords TEXT,
+  primaryoutcomes TEXT,
+  secondaryoutcomes TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_nctid ON clinical_trials_combined(NCTId);
-CREATE INDEX idx_disease ON clinical_trials_combined(Disease);
-CREATE INDEX idx_phase ON clinical_trials_combined(Phase);
+CREATE INDEX idx_nctid ON clinical_trials_combined(nctid);
+CREATE INDEX idx_disease ON clinical_trials_combined(disease);
+CREATE INDEX idx_phase ON clinical_trials_combined(phase);
 ```
 
-### Step 5: Deploy ETL Combined Function
+### 2. Create Cloud Composer Environment
 
 ```bash
-gcloud functions deploy etl_combined \
-  --runtime python3.11 \
-  --trigger-topic clinical-trials-trigger \
-  --entry-point etl_combined \
-  --timeout 540 \
-  --memory 512MB \
-  --set-env-vars SUPABASE_URL=https://cmvnwgmcbmhpldluycya.supabase.co,SUPABASE_KEY=your_anon_key \
-  --source .
+# Create service account
+gcloud iam service-accounts create composer-sa \
+  --display-name="Cloud Composer Service Account"
+
+# Grant permissions
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member=serviceAccount:composer-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+  --role=roles/composer.worker
+
+# Create Composer environment
+gcloud composer environments create tracking-hope-airflow \
+  --location us-central1 \
+  --service-account=composer-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
 ```
 
-### Step 6: Create Cloud Scheduler Job
-
-**For Combined ETL (Monday-Friday 11:00 AM UTC)**
+### 3. Configure Credentials
 
 ```bash
-gcloud scheduler jobs create pubsub etl-combined-daily \
-  --schedule="0 11 * * 1-5" \
+gcloud composer environments update tracking-hope-airflow \
+  --location us-central1 \
+  --update-env-variables \
+  SUPABASE_URL=YOUR_SUPABASE_URL,SUPABASE_KEY=YOUR_SUPABASE_ANON_KEY
+```
+
+### 4. Setup GitHub Actions
+
+Create a service account for GitHub:
+
+```bash
+gcloud iam service-accounts create github-actions-sa \
+  --display-name="GitHub Actions Service Account"
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member=serviceAccount:github-actions-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+  --role=roles/composer.admin
+
+gcloud iam service-accounts keys create github-key.json \
+  --iam-account=github-actions-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
+```
+
+Add the JSON key to GitHub Secrets as `GCP_SA_KEY`.
+
+---
+
+## 📂 Project Structure
+
+```
+clinical-trials-etl/
+├── dags/
+│   └── etl_dag.py              # Airflow DAG with complete ETL logic
+├── .github/
+│   └── workflows/
+│       └── deploy-dag.yml       # GitHub Actions deployment workflow
+├── README.md                    # This file
+├── ARCHITECTURE.md              # Detailed system design
+└── requirements.txt             # Python dependencies (minimal)
+```
+
+---
+
+## 🔄 How It Works
+
+### Automatic Execution
+
+The DAG runs automatically every weekday (Monday-Friday) at **11:00 AM UTC**:
+
+1. **Extract Phase** (~3-5 min)
+   - Query ClinicalTrials.gov API for each disease
+   - Paginate through results
+   - Extract 20+ fields per trial
+
+2. **Transform Phase** (~1-2 min)
+   - Remove duplicates
+   - Standardize phases (Phase 1, 2, 3, 4)
+   - Clean text fields
+   - Fill missing values
+
+3. **Load Phase** (~2-3 min)
+   - Truncate existing table
+   - Batch insert 200 records at a time
+   - Upsert to handle re-runs
+
+### Manual Trigger
+
+Run manually via Airflow UI:
+1. Go to Cloud Composer environment URL
+2. Find "clinical_trials_etl_pipeline" DAG
+3. Click the play button to trigger
+
+---
+
+## 🚀 Deployment
+
+### Automatic via GitHub Actions
+
+Every push to the `dags/` folder automatically:
+1. Deploys the updated DAG to Cloud Composer
+2. Airflow detects and parses the new DAG
+3. Pipeline is ready to run on next schedule
+
+### Manual Upload
+
+If needed:
+```bash
+gcloud composer environments storage dags import \
+  --environment=tracking-hope-airflow \
   --location=us-central1 \
-  --topic=clinical-trials-trigger \
-  --message-body="{}" \
-  --time-zone="UTC"
+  --source=dags/etl_dag.py
 ```
 
-## Manual Execution
+---
 
-To manually trigger the ETL pipeline:
+## 📊 Monitoring
 
+### View DAG Status
+1. Open Cloud Composer environment URL
+2. Click "DAGs" tab
+3. Find "clinical_trials_etl_pipeline"
+4. Check execution history and logs
+
+### View Logs
 ```bash
-gcloud scheduler jobs run etl-combined-daily --location=us-central1
+gcloud composer environments run tracking-hope-airflow \
+  --location us-central1 dags list
 ```
 
-## Monitoring
+### Check Supabase Data
+1. Go to Supabase dashboard
+2. Table Editor → clinical_trials_combined
+3. Verify row count and recent inserts
 
-### View Logs via CLI
+---
 
-```bash
-gcloud functions logs read etl_combined --limit 50
+## 🔧 Maintenance
+
+### Update the DAG
+
+1. Modify `dags/etl_dag.py` locally
+2. Push to GitHub
+3. GitHub Actions automatically deploys
+4. Airflow detects changes within 5 minutes
+
+### Add New Disease
+
+Edit `DISEASES` dictionary in `dags/etl_dag.py`:
+
+```python
+DISEASES = {
+    ...
+    'New_Disease': 'Disease Name OR Alternative Name',
+}
 ```
 
-### View in Cloud Console
+Commit and push - GitHub Actions handles deployment!
 
-1. Go to https://console.cloud.google.com
-2. Navigate to **Cloud Functions**
-3. Click on **etl_combined**
-4. Click **Logs** tab
+### Troubleshooting
 
-### View Data in Supabase
+**DAG Import Errors:**
+- Check Airflow logs in Cloud Composer
+- Verify Python syntax with `python -m py_compile dags/etl_dag.py`
+- Check environment variables are set
 
-1. Go to https://app.supabase.com
-2. Select **TrackingHope** project
-3. Click **Table Editor**
-4. Select **clinical_trials_combined**
-5. View 15,810 records
+**Data Not Loading:**
+- Verify Supabase credentials
+- Check table exists and has correct schema
+- View execution logs in Airflow UI
 
-## Local Testing
+**Pipeline Timeout:**
+- Increase `execution_timeout` in DAG
+- Check ClinicalTrials.gov API status
+- Monitor network connectivity
 
-### Install Dependencies
+---
 
-```bash
-pip install -r requirements.txt --break-system-packages
-```
+## 📈 Performance
 
-### Test ETL Function Locally
+- **Execution Time:** 5-10 minutes per run
+- **Records Processed:** 15,810+ per day
+- **API Rate Limit:** ~0.5 second delay between requests
+- **Batch Size:** 200 records per database insert
+- **Cost:** ~$0-5/month (within GCP free tier)
 
-```bash
-python3 << 'EOF'
-from main import etl_combined
+---
 
-# Mock event and context
-class Event:
-    pass
+## 👥 Team
 
-class Context:
-    pass
+- **Zina Tiar**
+- **Matthias Haeflinger**
+- **Ziad Bejaoui**
 
-# Run the function
-etl_combined(Event(), Context())
-EOF
-```
+---
 
-## Troubleshooting
-
-### Function Timeout
-- Increase timeout parameter (max 540 seconds)
-- Check ClinicalTrials.gov API rate limits
-- Review logs for slow API responses
-
-### Database Connection Issues
-- Verify Supabase URL and API key
-- Check network connectivity
-- Ensure `clinical_trials_combined` table exists
-
-### Missing Data
-- Check disease search queries in DISEASES dictionary
-- Verify filter criteria (status, purpose, phase)
-- Review logs for API errors
-
-### Memory Issues
-- Increase memory allocation (max 8GB)
-- Monitor DataFrame sizes
-- Consider pagination improvements
-
-## Cost Estimation
-
-**Free Tier** (per month):
-- 2,000,000 function invocations (ample for daily runs)
-- 400,000 GB-seconds of compute time
-- Cloud Scheduler: 3 jobs free
-
-**Estimated Usage**:
-- ~30 invocations/month (daily runs)
-- ~150 GB-seconds/month
-
-**Total Cost**: ~$0 (within free tier)
-
-## Data Transformation Steps
-
-1. **Extraction**: Fetch from ClinicalTrials.gov API using disease search queries
-2. **Filtering**: Apply status, purpose, and phase filters
-3. **Cleaning**: Remove duplicates, fill missing values
-4. **Phase Standardization**: Normalize phase naming (Phase 1, Phase 2, etc.)
-5. **Text Cleaning**: Remove newlines and extra spaces from summaries
-6. **N/A Replacement**: Replace "N/A" with "Not published" in summary fields
-7. **Loading**: UPSERT into Supabase `clinical_trials_combined` table
-
-## GitHub Repository
-
-```
-https://github.com/Ziad2727/clinical-trials-etl
-```
-
-## Next Steps
-
-1. Deploy function to Google Cloud ✅
-2. Create Cloud Scheduler job ✅
-3. Monitor execution logs ✅
-4. Create visualization dashboard (Dash or R Shiny)
-5. Share dashboard with stakeholders
-6. Setup alerts for failed runs
-
-## Team
-
-Contributors:
-- Zina Tiar
-- Matthias Haeflinger
-- Ziad Bejaoui
-
-## Support
-
-For issues or questions:
-1. Check the logs in Google Cloud Console
-2. Verify Supabase connectivity
-3. Open an issue on GitHub
-4. Review DEPLOYMENT.md for detailed troubleshooting
-
-## License
+## 📄 License
 
 MIT
+
+---
+
+## 📞 Support
+
+For issues or questions:
+1. Check [ARCHITECTURE.md](./ARCHITECTURE.md) for system design
+2. Review Airflow logs in Cloud Composer UI
+3. Open an issue on GitHub
+4. Check Supabase documentation for database issues
+
+---
+
+## 🎯 Next Steps
+
+- [ ] Build visualization dashboard (Dash/Streamlit)
+- [ ] Add data quality checks as DAG task
+- [ ] Setup email alerts for failed runs
+- [ ] Add historical data backfill capability
+- [ ] Implement incremental loading (append-only mode)
+
+---
+
+**Last Updated:** April 12, 2026  
+**Airflow Version:** 2.10.5  
+**Composer Version:** 3
