@@ -215,6 +215,16 @@ def run_etl():
         df_combined = pd.concat(all_dfs, ignore_index=True)
         df_combined = df_combined.drop_duplicates(subset=['nctid'])
 
+        # Filter: Keep only studies where the disease is in the conditions
+        filtered_dfs = []
+        for disease, df in zip(DISEASES.keys(), all_dfs):
+            disease_clean = disease.replace('_', ' ').lower()
+            df_filtered = df[df['conditions'].str.lower().str.contains(disease_clean, na=False)]
+            filtered_dfs.append(df_filtered)
+
+        df_combined = pd.concat(filtered_dfs, ignore_index=True)
+        df_combined = df_combined.drop_duplicates(subset=['nctid'])
+
         log_message(f"Total extracted: {len(df_combined)}")
 
         # Data cleaning
