@@ -218,8 +218,12 @@ def run_etl():
         # Filter: Keep only studies where the disease is in the conditions
         filtered_dfs = []
         for disease, df in zip(DISEASES.keys(), all_dfs):
-            disease_clean = disease.replace('_', ' ').lower()
-            df_filtered = df[df['conditions'].str.lower().str.contains(disease_clean, na=False)]
+            keywords = disease.replace('_', ' ').lower().split()
+            df_filtered = df[
+                df['conditions'].str.lower().apply(
+                    lambda x: any(k in str(x) for k in keywords)
+                )
+            ]
             filtered_dfs.append(df_filtered)
 
         df_combined = pd.concat(filtered_dfs, ignore_index=True)
@@ -229,8 +233,15 @@ def run_etl():
 
         # Data cleaning
         df_combined["phase"] = df_combined["phase"].str.upper().str.strip()
-        valid_phases = ['PHASE1', 'PHASE2', 'PHASE3', 'PHASE4']
-        df_combined = df_combined[df_combined['phase'].isin(valid_phases)]
+        # DEBUG
+        log_message("Phases BEFORE filtering:")
+        log_message(df_combined['phase'].value_counts().to_dict())
+        valid_phases = ['PHASE1', 'PHASE2', 'PHASE3', 'PHASE4', 'N/A']
+        df_combined = df_combined[
+            df_combined['phase'].apply(
+                lambda x: any(p in str(x) for p in valid_phases)
+            )
+        ]
 
         log_message(f"After phase filter: {len(df_combined)}")
 
