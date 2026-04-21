@@ -171,6 +171,17 @@ def _disease_df(disease: str) -> pd.DataFrame:
 def disease_active_count(disease: str) -> int:
     return len(_disease_df(disease))
 
+def disease_advanced_count(disease: str) -> int:
+    """Compte les études après filtres (phase valide + purpose valide)"""
+    key = disease.replace(" ", "_")
+    df = fetch_active()
+    d = df[df["disease"].str.lower() == key.lower()].copy()
+    
+    # Appliquez les mêmes filtres que dans top5_for_disease
+    d = d[d["phase"].apply(lambda p: any(ph in p for ph in ["PHASE2", "PHASE3", "PHASE4"]))]
+    d = d[~d["primarypurpose"].isin(["BASIC_SCIENCE", "HEALTH_SERVICES_RESEARCH", "DEVICE_FEASIBILITY"])]
+    
+    return len(d)
 
 def disease_phase_dist(disease: str) -> pd.DataFrame:
     return _phase_counts(_disease_df(disease))

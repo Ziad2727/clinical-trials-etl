@@ -7,7 +7,7 @@ import pandas as pd
 from dash import html, dcc, callback, Input, Output, State
 from translations import t
 from data import (
-    disease_active_count, disease_phase_dist,
+    disease_active_count, disease_advanced_count, disease_phase_dist,
     disease_trials_per_year, disease_geo, top5_for_disease,
     get_disease_list,
 )
@@ -37,6 +37,7 @@ def build_disease_page(disease: str, language: str = "English",
                        dis_options: list = None) -> html.Div:
     name         = disease.replace("_", " ")
     active_count = disease_active_count(disease)
+    advanced_count = len(top5_for_disease(disease))
     phases       = disease_phase_dist(disease)
     by_year      = disease_trials_per_year(disease)
     geo          = disease_geo(disease)
@@ -80,6 +81,7 @@ def build_disease_page(disease: str, language: str = "English",
 
         html.Div([
             _chip(f"{active_count:,}", t("disease_active", language)),
+            _chip(f"{advanced_count:,}", "Advanced trials"),
         ], className="stat-bar", style={"marginBottom": "2rem"}),
 
         html.Hr(className="ct-divider"),
