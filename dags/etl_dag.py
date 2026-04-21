@@ -310,7 +310,7 @@ default_args = {
     'email_on_failure': False,
     'email_on_retry': False,
     'start_date': datetime(2026, 4, 1),
-    'execution_timeout': timedelta(seconds=1800),
+    'execution_timeout': timedelta(seconds=3600),
 }
 
 dag = DAG(
