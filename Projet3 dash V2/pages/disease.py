@@ -7,12 +7,12 @@ import pandas as pd
 from dash import html, dcc, callback, Input, Output, State
 from translations import t
 from data import (
-    disease_active_count, disease_advanced_count, disease_phase_dist,
+    disease_active_count, disease_advanced_count, disease_phase_dist, disease_total_count,
     disease_trials_per_year, disease_geo, top5_for_disease,
     get_disease_list,
 )
 
-TEAL   = "#3ad8a9"
+TEAL   = "#39d6a7"
 AMBER  = "#f5a623"
 PURPLE = "#9b82f3"
 BLUE   = "#74b9f7"
@@ -38,6 +38,7 @@ def build_disease_page(disease: str, language: str = "English",
     name         = disease.replace("_", " ")
     active_count = disease_active_count(disease)
     advanced_count = len(top5_for_disease(disease))
+    total_count = disease_total_count(disease)
     phases       = disease_phase_dist(disease)
     by_year      = disease_trials_per_year(disease)
     geo          = disease_geo(disease)
@@ -80,8 +81,9 @@ def build_disease_page(disease: str, language: str = "English",
         ], className="browse-header"),
 
         html.Div([
-            _chip(f"{active_count:,}", t("disease_active", language)),
-            _chip(f"{advanced_count:,}", "Advanced trials"),
+            _chip(f"{total_count:,}", "Total trials"),
+            _chip(f"{active_count:,}", "Active trials"),
+            _chip(f"{promising_count:,}", "Promising trials"),
         ], className="stat-bar", style={"marginBottom": "2rem"}),
 
         html.Hr(className="ct-divider"),
