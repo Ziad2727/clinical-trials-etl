@@ -168,8 +168,22 @@ def _disease_df(disease: str) -> pd.DataFrame:
     return df[df["disease"].str.lower() == key.lower()].copy()
 
 
+def disease_total_count(disease: str) -> int:
+    """Toutes les études extraites"""
+    df = fetch_all()
+    key = disease.replace(" ", "_")
+    return len(df[df["disease"].str.lower() == key.lower()])
+
+
 def disease_active_count(disease: str) -> int:
-    return len(_disease_df(disease))
+    """Phase 1-4 + status actif"""
+    df = fetch_active()
+    key = disease.replace(" ", "_")
+    d = df[df["disease"].str.lower() == key.lower()]
+    d = d[d["phase"].str.upper().apply(
+        lambda p: any(ph in str(p) for ph in ["PHASE1", "PHASE2", "PHASE3", "PHASE4"])
+    )]
+    return len(d)
 
 def disease_advanced_count(disease: str) -> int:
     """Compte les études après filtres (phase valide + purpose valide)"""
