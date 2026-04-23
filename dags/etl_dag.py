@@ -20,7 +20,7 @@ import json
 API_URL = "https://clinicaltrials.gov/api/v2/studies"
 STATUS_FILTER = "RECRUITING,ACTIVE_NOT_RECRUITING,ENROLLING_BY_INVITATION,COMPLETED"
 PAGE_SIZE = 1000
-RATE_LIMIT_DELAY = 0.5
+RATE_LIMIT_DELAY = 0.2
 
 # ============================================================================
 # DISEASE DEFINITIONS
@@ -321,7 +321,7 @@ default_args = {
     'email_on_failure': False,
     'email_on_retry': False,
     'start_date': datetime(2026, 4, 1),
-    'execution_timeout': timedelta(seconds=7200),
+    'execution_timeout': timedelta(seconds=20000),
 }
 
 dag = DAG(
