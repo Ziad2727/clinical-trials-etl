@@ -37,7 +37,7 @@ def build_disease_page(disease: str, language: str = "English",
                        dis_options: list = None) -> html.Div:
     name         = disease.replace("_", " ")
     active_count = disease_active_count(disease)
-    advanced_count = len(top5_for_disease(disease))
+    promising_count = len(top5_for_disease(disease))
     total_count = disease_total_count(disease)
     phases       = disease_phase_dist(disease)
     by_year      = disease_trials_per_year(disease)
@@ -83,7 +83,7 @@ def build_disease_page(disease: str, language: str = "English",
         html.Div([
             _chip(f"{total_count:,}", "Total trials"),
             _chip(f"{active_count:,}", "Active trials"),
-            _chip(f"{promising_count:,}", "Promising trials"),
+            _chip(f"{promising_count:,}", "Advanced trials"),  # Juste le label change
         ], className="stat-bar", style={"marginBottom": "2rem"}),
 
         html.Hr(className="ct-divider"),
@@ -159,43 +159,59 @@ def _top5_chart(top: pd.DataFrame) -> dcc.Graph:
 
 def _top5_table(top: pd.DataFrame, language: str) -> html.Div:
     sorted_top = top.sort_values("score", ascending=False)
-    # Stocker nctid+title dans un Store pour que le callback puisse y accéder
-    fav_data = [
-        {"nctid": row["nctid"], "title": row["interventionname"]}
-        for _, row in sorted_top.iterrows()
-    ]
+
     rows = []
     for i, (_, row) in enumerate(sorted_top.iterrows()):
         p = row["phase"]
-        badge = "phase-badge p4" if "PHASE4" in p else "phase-badge p3" if "PHASE3" in p else "phase-badge p2" if "PHASE2" in p else "phase-badge nct"
+        badge = "phase-badge p4" if "PHASE4" in p else \
+                "phase-badge p3" if "PHASE3" in p else \
+                "phase-badge p2" if "PHASE2" in p else \
+                "phase-badge nct"
+
         nctid = row["nctid"]
         title = row["interventionname"]
+
         rows.append(html.Tr([
             html.Td(html.Div([
-                html.A(nctid, href=f"https://clinicaltrials.gov/study/{nctid}",
-                       target="_blank", className="nct-link"),
+                html.A(
+                    nctid,
+                    href=f"https://clinicaltrials.gov/study/{nctid}",
+                    target="_blank",
+                    className="nct-link"
+                ),
                 html.Button(
                     "♡",
-                    id={"type": "btn-add-fav", "index": i},
+                    id={"type": "btn-add-fav", "index": i},  # ✅ OK
                     n_clicks=0,
                     className="fav-btn",
                 ),
             ], className="nct-cell")),
+
             html.Td(title, className="td-intervention"),
             html.Td(html.Span(p.replace("PHASE", "Phase "), className=badge)),
             html.Td(f"{int(row['enrollment']):,}"),
             html.Td(row["region"]),
             html.Td(html.Span(f"{row['score']:.0f}", className="score-badge")),
         ]))
+
     table = html.Table([
-        html.Thead(html.Tr([html.Th("NCT ID"), html.Th(t("intervention", language)),
-                            html.Th(t("phase", language)), html.Th(t("participants", language)),
-                            html.Th(t("region", language)), html.Th(t("score", language))])),
+        html.Thead(html.Tr([
+            html.Th("NCT ID"),
+            html.Th(t("intervention", language)),
+            html.Th(t("phase", language)),
+            html.Th(t("participants", language)),
+            html.Th(t("region", language)),
+            html.Th(t("score", language)),
+        ])),
         html.Tbody(rows),
     ], className="top5-data-table", style={"marginBottom": "2rem"})
+
     return html.Div([
-        dcc.Store(id="store-top5-data", data=fav_data),
         table,
+        dcc.Store(
+            id="store-top5-data",
+            data=sorted_top.to_dict("records") 
+        ),
     ])
 
 

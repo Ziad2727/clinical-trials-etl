@@ -10,6 +10,8 @@ import json
 
 from translations import t, is_rtl, LANG_CODES
 import settings
+from chatbot_ui import build_chatbot
+
 
 app = dash.Dash(
     __name__,
@@ -139,7 +141,7 @@ app.layout = html.Div([
             ], className="main-area", id="main-area-wrapper"),
         ], className="body-row"),
     ], id="app-root"),
-
+    build_chatbot(),
 ], id="page-wrapper")
 
 
@@ -377,24 +379,37 @@ def update_settings(language, dark_mode, favorites, user):
     Output("store-favorites", "data", allow_duplicate=True),
     Input({"type": "btn-add-fav", "index": dash.ALL}, "n_clicks"),
     State("store-favorites", "data"),
-    State("store-top5-data", "data"),
+    State("store-top5-data", "data", allow_optional=True),  
     prevent_initial_call=True,
 )
 def add_favorite(n_clicks_list, favorites, top5_data):
     ctx = dash.callback_context
-    if not ctx.triggered or not any(n for n in n_clicks_list if n):
-        return dash.no_update
-    idx = json.loads(ctx.triggered[0]["prop_id"].split(".")[0])["index"]
-    if not top5_data or idx >= len(top5_data):
-        return dash.no_update
-    entry = top5_data[idx]
-    nctid = entry["nctid"]
-    title = entry["title"]
-    favorites = favorites or []
-    if any(f.get("nctid") == nctid for f in favorites):
-        return favorites
-    return favorites + [{"nctid": nctid, "title": title}]
 
+    if not ctx.triggered:
+        return dash.no_update
+
+    if not any(n_clicks_list):
+        return dash.no_update
+
+    if not top5_data:
+        return dash.no_update
+
+    idx = json.loads(ctx.triggered[0]["prop_id"].split(".")[0])["index"]
+
+    if idx >= len(top5_data):
+        return dash.no_update
+
+    entry = top5_data[idx]
+
+    favorites = favorites or []
+
+    if any(f.get("nctid") == entry["nctid"] for f in favorites):
+        return [f for f in favorites if f.get("nctid") != entry["nctid"]]
+
+    return favorites + [{
+        "nctid": entry["nctid"],
+        "title": entry.get("interventionname", entry.get("title", ""))
+    }]
 
 # ============================================================
 # THEME
