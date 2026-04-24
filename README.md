@@ -1,14 +1,16 @@
 # Clinical Trials ETL Pipeline - TrackingHope
 
-Extract, transform, and load clinical trials data from ClinicalTrials.gov to Supabase using Apache Airflow on Google Cloud Composer.
+Extract, transform, and load clinical trials data from ClinicalTrials.gov to Supabase using Apache Airflow on Google Cloud Composer. Includes interactive Dash dashboard with AI chatbot.
 
 ## Overview
 
-This project orchestrates a daily ETL pipeline that:
+This project orchestrates a complete clinical trials intelligence platform:
 
 1. **Extracts** clinical trial data from ClinicalTrials.gov API for 10 diseases
 2. **Transforms** and cleans the data (remove duplicates, standardize formats, etc.)
 3. **Loads** the processed data into Supabase PostgreSQL database
+4. **Visualizes** with interactive Dash dashboard and analytics
+5. **Chatbot** for answering questions about trials
 
 The pipeline is fully automated and runs daily at **11:00 AM UTC (Monday-Friday)** via Apache Airflow.
 
@@ -36,26 +38,27 @@ The pipeline is fully automated and runs daily at **11:00 AM UTC (Monday-Friday)
 - Dates (start, completion, primary completion)
 - Summaries, descriptions, and outcomes
 
-**Total Records:** 15,810+ clinical trials
+**Total Records:** 
+- 57,684 trials extracted
+- 20,462 advanced trials (Phase 1-4 + TREATMENT/PREVENTION)
+- 220+ countries
 
 ---
 
 ## Architecture
+GitHub (Source Code)
+↓
+GitHub Actions (CI/CD)
+↓
+Google Cloud Composer (Airflow)
+↓
+ClinicalTrials.gov API
+↓
+Supabase PostgreSQL
+↓
+Dash Dashboard + Chatbot
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for detailed system design.
-
-**Quick Overview:**
-```
-GitHub (Source Code)
-    ↓
-GitHub Actions (CI/CD)
-    ↓
-Google Cloud Composer (Airflow)
-    ↓
-ClinicalTrials.gov API
-    ↓
-Supabase PostgreSQL (Data Storage)
-```
 
 ---
 
@@ -65,6 +68,7 @@ Supabase PostgreSQL (Data Storage)
 - Supabase account with PostgreSQL database
 - GitHub repository (this one!)
 - Git CLI installed locally
+- Python 3.9+
 
 ---
 
@@ -153,49 +157,129 @@ Add the JSON key to GitHub Secrets as `GCP_SA_KEY`.
 ---
 
 ## Project Structure
-
-```
 clinical-trials-etl/
 ├── dags/
-│   └── etl_dag.py              # Airflow DAG with complete ETL logic
+│   └── etl_dag.py                    # Airflow DAG with complete ETL logic
+├── Projet3 dash V2/
+│   ├── app.py                        # Dash main application
+│   ├── data.py                       # Supabase data layer + scoring
+│   ├── chatbot.py                    # FAQ chatbot logic
+│   ├── chatbot_ui.py                 # Chatbot UI component
+│   ├── pages/
+│   │   ├── welcome.py               # Landing page
+│   │   ├── disease.py               # Disease analysis page
+│   │   ├── favorites.py             # Saved studies page
+│   │   ├── infos.py                 # About page
+│   │   ├── login.py                 # Authentication page
+│   │   └── settings.py              # User settings
+│   ├── translations.py              # Multi-language support (8 languages)
+│   ├── assets/
+│   │   └── styles.css               # Design system
+│   └── requirements.txt
 ├── .github/
 │   └── workflows/
-│       └── deploy-dag.yml       # GitHub Actions deployment workflow
-├── README.md                    # This file
-├── ARCHITECTURE.md              # Detailed system design
-└── requirements.txt             # Python dependencies (minimal)
-```
+│       └── deploy-dag.yml           # GitHub Actions deployment
+├── README.md                        # This file
+├── ARCHITECTURE.md                  # Detailed system design
+└── requirements.txt                 # Python dependencies
 
 ---
 
 ## How It Works
 
-### Automatic Execution
+### ETL Pipeline
 
 The DAG runs automatically every weekday (Monday-Friday) at **11:00 AM UTC**:
 
-1. **Extract Phase** (~3-5 min)
+1. **Extract Phase** (~20 min)
    - Query ClinicalTrials.gov API for each disease
-   - Paginate through results
+   - Paginate through results (1000 per page)
    - Extract 20+ fields per trial
 
-2. **Transform Phase** (~1-2 min)
-   - Remove duplicates
-   - Standardize phases (Phase 1, 2, 3, 4)
-   - Clean text fields
-   - Fill missing values
+2. **Transform Phase** (~5 min)
+   - Remove duplicates by NCTId
+   - Standardize phases (PHASE1, PHASE2, PHASE3, PHASE4)
+   - Filter by disease keywords in conditions
+   - Clean text fields (newlines, extra spaces)
+   - Fill missing values with "Unknown"
 
-3. **Load Phase** (~2-3 min)
+3. **Load Phase** (~35 min)
    - Truncate existing table
    - Batch insert 200 records at a time
    - Upsert to handle re-runs
 
-### Manual Trigger
+**Total Execution Time:** ~60 minutes
 
-Run manually via Airflow UI:
-1. Go to Cloud Composer environment URL
-2. Find "clinical_trials_etl_pipeline" DAG
-3. Click the play button to trigger
+### Dashboard Features
+
+**Welcome Page**
+- Hero section with disease selector
+- Explore button to navigate to disease details
+
+**Disease Page**
+- **3 KPIs:** Total Trials | Active Trials | Advanced Trials
+- **Phase Distribution:** Bar chart showing Phase I, II, III, IV breakdown
+- **Timeline:** Trials started per year since 2010
+- **Geographic Map:** World map showing trial locations by country
+- **Top 5 Promising Trials:** Scored by Promise Score
+- **Data Table:** Sortable table with NCT ID, intervention, phase, enrollment, region, score
+
+**Promise Score Calculation**
+Score = Phase (40) + Results (20) + Sponsor (20) + FDA (10) + Enrollment (15)
+
+Phase IV = 40pts, Phase III = 30pts, Phase II = 15pts, Phase I = 0pts
+Published Results = 20pts
+Industry Sponsor = 20pts
+FDA Regulated = 10pts
+Enrollment weighted by region (USA/EU = 1.0x, Others = 0.6x)
+
+
+**Favorites Page**
+- Save and manage favorite trials
+- Easy access to studies of interest
+
+**Settings**
+- Language selector (8 languages: EN, FR, ES, DE, IT, ZH, AR, PT)
+- Dark mode toggle
+- Logout
+
+### Chatbot Features
+
+10 pre-defined FAQ questions accessible via floating widget:
+
+1. How many Phase 3 trials?
+2. Which pharmaceutical sponsors?
+3. How many published results?
+4. What's the average enrollment?
+5. Which drugs are being tested?
+6. In how many countries?
+7. What's the trial status distribution?
+8. How many FDA-regulated?
+9. What's the average duration?
+10. Are there Phase 4 trials?
+
+---
+
+## Running the Dashboard
+
+### Local Development
+
+```bash
+cd "Projet3 dash V2"
+pip install -r requirements.txt
+python app.py
+```
+
+Open http://localhost:8050 in your browser.
+
+### Production Deployment
+
+Deploy to your preferred platform (Heroku, Vercel, GCP App Engine, etc.)
+
+```bash
+# Example: GCP App Engine
+gcloud app deploy
+```
 
 ---
 
@@ -223,7 +307,7 @@ gcloud composer environments storage dags import \
 ## Monitoring
 
 ### View DAG Status
-1. Open Cloud Composer environment URL
+1. Open https://1258ba9ffc834d3e8021b3b645bc5124-dot-us-central1.composer.googleusercontent.com
 2. Click "DAGs" tab
 3. Find "clinical_trials_etl_pipeline"
 4. Check execution history and logs
@@ -235,7 +319,7 @@ gcloud composer environments run tracking-hope-airflow \
 ```
 
 ### Check Supabase Data
-1. Go to Supabase dashboard
+1. Go to https://supabase.com/dashboard
 2. Table Editor → clinical_trials_combined
 3. Verify row count and recent inserts
 
@@ -276,19 +360,34 @@ Commit and push - GitHub Actions handles deployment!
 - View execution logs in Airflow UI
 
 **Pipeline Timeout:**
-- Increase `execution_timeout` in DAG
+- Increase `execution_timeout` in DAG (currently 3 hours)
 - Check ClinicalTrials.gov API status
 - Monitor network connectivity
+
+**Dashboard Not Showing Data:**
+- Verify SUPABASE_URL and SUPABASE_KEY environment variables
+- Check Supabase table has data
+- Try clearing browser cache and reloading
 
 ---
 
 ## Performance
 
-- **Execution Time:** 5-10 minutes per run
-- **Records Processed:** 15,810+ per day
-- **API Rate Limit:** ~0.5 second delay between requests
+- **Extraction Time:** ~60 minutes per run
+- **Records Processed:** 20,462 advanced trials per day
+- **API Rate Limit:** 0.2-0.5 second delay between requests
 - **Batch Size:** 200 records per database insert
-- **Cost:** ~$0-5/month (within GCP free tier)
+- **Dashboard Load Time:** <2 seconds
+- **Cost:** ~$0-10/month (GCP Composer + Supabase)
+
+---
+
+## Useful Links
+
+- **Airflow UI:** https://1258ba9ffc834d3e8021b3b645bc5124-dot-us-central1.composer.googleusercontent.com
+- **GCP Console:** https://console.cloud.google.com/composer/environments?project=clinical-trials-etl
+- **GitHub Actions:** https://github.com/Ziad2727/clinical-trials-etl/actions
+- **Supabase Dashboard:** https://supabase.com/dashboard
 
 ---
 
@@ -316,16 +415,32 @@ For issues or questions:
 
 ---
 
-## Next Steps
+## Roadmap
 
-- [ ] Build visualization dashboard (Dash/Streamlit)
-- [ ] Add data quality checks as DAG task
-- [ ] Setup email alerts for failed runs
-- [ ] Add historical data backfill capability
-- [ ] Implement incremental loading (append-only mode)
+### Short Term (Current Sprint)
+- ETL Pipeline with Airflow
+- Dash Dashboard with analytics
+- Chatbot with FAQ
+- Multi-language support
+- [ ] Email alerts for new trials
+- [ ] PDF export of Top 5
+
+### Medium Term
+- [ ] Advanced filtering (phase, sponsor, country)
+- [ ] Trial comparison tool
+- [ ] Mobile-responsive improvements
+- [ ] User authentication & saved searches
+
+### Long Term
+- [ ] ML predictions (trial success rate by phase)
+- [ ] Marketplace (researchers ↔ trials)
+- [ ] Public API
+- [ ] Researcher matching algorithm
 
 ---
 
-**Last Updated:** April 12, 2026  
+**Last Updated:** April 23, 2026  
 **Airflow Version:** 2.10.5  
-**Composer Version:** 3
+**Composer Version:** 3  
+**Dash Version:** 2.x  
+**Status:** Production Ready ✅
